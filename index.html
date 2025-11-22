@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>門診病人藥物衛教前後認知度調查及其滿意度調查表</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 引入 FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- 引入 PDF 與 Excel 相關函式庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 顏色定義 */
+        .text-med-blue { color: #0056b3; }
+        .bg-med-blue { background-color: #0056b3; }
+        .border-med-blue { border-color: #0056b3; }
+        
+        .text-tech-green { color: #10b981; }
+        .bg-tech-green { background-color: #10b981; }
+        .border-tech-green { border-color: #10b981; }
+
+        .bg-tech-grey { background-color: #64748b; }
+        .hover-bg-tech-grey:hover { background-color: #475569; }
+
+        /* 輸入框樣式 - 優化 PDF 顯示 */
+        .input-minimal {
+            background-color: transparent;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 10px 12px; 
+            width: 100%;
+            outline: none;
+            transition: border-color 0.3s;
+            line-height: 1.6;
+            font-size: 1rem;
+            min-height: 48px;
+            vertical-align: middle;
+        }
+        
+        select.input-minimal {
+            appearance: none; 
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
+            background-color: #fff;
+        }
+
+        .input-minimal:focus {
+            border-color: #0056b3;
+            box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.1);
+        }
+
+        /* 單選按鈕樣式 */
+        .radio-group input[type="radio"] {
+            display: none;
+        }
+        .radio-custom {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #94a3b8;
+            border-radius: 50%;
+            position: relative;
+            vertical-align: middle;
+            margin-right: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .radio-group input[type="radio"]:checked + .radio-custom {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        .radio-group input[type="radio"]:checked + .radio-custom::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 6px;
+            height: 6px;
+            background-color: white;
+            border-radius: 50%;
+        }
+
+        /* 錯誤訊息 */
+        .error-msg {
+            color: #ef4444;
+            font-size: 0.75rem;
+            margin-left: 8px;
+            display: none;
+            font-weight: 500;
+        }
+        .has-error .input-minimal {
+            border-color: #ef4444;
+        }
+        .has-error .error-msg {
+            display: inline-block;
+        }
+
+        /* Canvas */
+        #signature-pad {
+            border: 2px dashed #cbd5e1;
+            background-color: white;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        /* A4 容器 */
+        .a4-container {
+            max-width: 210mm;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            min-height: 297mm;
+        }
+
+        @media print {
+            .no-print { display: none !important; }
+            .a4-container { box-shadow: none; margin: 0; padding: 20px; width: 100%; }
+            body { background-color: white; }
+        }
+        
+        /* 選項標籤樣式優化 */
+        .option-label {
+            font-size: 0.9rem;
+            color: #64748b;
+            transition: color 0.2s;
+            line-height: 1.5;
+        }
+        .radio-group:hover .radio-custom { border-color: #0056b3; }
+        .radio-group input[type="radio"]:checked ~ .option-label {
+            color: #0056b3;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+<!-- 隱藏的檔案輸入框，用於讀取草稿 -->
+<input type="file" id="draftInput" accept=".json" style="display: none;" onchange="loadDraftFile(this)">
+
+<div id="form-container" class="a4-container my-8 relative">
+    
+    <header class="text-center mb-8 border-b-2 border-med-blue pb-4">
+        <h1 class="text-2xl font-bold text-med-blue tracking-wide">
+            <i class="fa-solid fa-hospital-user mr-2"></i>門診病人藥物衛教前後認知度調查及其滿意度調查表
+        </h1>
+        <p class="text-sm text-gray-500 mt-2">Medication Education Cognition & Satisfaction Survey</p>
+    </header>
+
+    <!-- 1. 基本資料 -->
+    <section class="mb-8">
+        <h2 class="text-lg font-bold text-slate-700 mb-4 border-l-4 border-tech-green pl-2 flex items-center">
+            基本資料 <span class="text-sm font-normal text-gray-400 ml-2">(Basic Information)</span>
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="form-group" id="group-name">
+                <label class="block text-sm font-medium text-gray-700 mb-2">病人姓名 (Name) <span class="error-msg">請填寫姓名</span></label>
+                <input type="text" id="patientName" class="input-minimal" placeholder="請輸入姓名">
+            </div>
+            <div class="form-group" id="group-id">
+                <label class="block text-sm font-medium text-gray-700 mb-2">病歷號/身分證號 (Chart No.) <span class="error-msg">請填寫號碼</span></label>
+                <input type="text" id="patientId" class="input-minimal" placeholder="請輸入號碼">
+            </div>
+            <div class="form-group" id="group-date">
+                <label class="block text-sm font-medium text-gray-700 mb-2">填寫日期 (Date) <span class="error-msg">請選擇日期</span></label>
+                <input type="date" id="surveyDate" class="input-minimal">
+            </div>
+            <div class="form-group" id="group-age">
+                <label class="block text-sm font-medium text-gray-700 mb-2">年齡 (Age) <span class="error-msg">請填寫年齡</span></label>
+                <input type="number" id="patientAge" class="input-minimal" placeholder="請輸入年齡">
+            </div>
+        </div>
+
+        <!-- 3. 衛教藥師 -->
+        <div class="form-group bg-blue-50/50 p-4 rounded border border-blue-100" id="group-pharmacist">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                <i class="fa-solid fa-user-doctor mr-2 text-med-blue"></i>衛教藥師 (Pharmacist)
+                <span class="error-msg">請選擇藥師</span>
+            </label>
+            <select id="pharmacistSelect" class="input-minimal bg-white py-2">
+                <option value="" disabled selected>-- 請選擇藥師 --</option>
+            </select>
+        </div>
+    </section>
+
+    <!-- 2. 藥物選擇 -->
+    <section class="mb-8">
+        <h2 class="text-lg font-bold text-slate-700 mb-4 border-l-4 border-tech-green pl-2 flex items-center">
+            衛教藥品選擇 <span class="text-sm font-normal text-gray-400 ml-2">(Medication Selection)</span>
+        </h2>
+        <div class="form-group" id="group-drug">
+            <label class="block text-sm font-medium text-gray-700 mb-2">請選擇本次衛教的主要藥品： <span class="error-msg">請選擇藥品</span></label>
+            <select id="drugSelect" class="input-minimal bg-white">
+                <option value="" disabled selected>-- 請選擇藥品 --</option>
+            </select>
+        </div>
+    </section>
+
+    <!-- 3. 調查內容 (分區) -->
+    <section class="mb-8">
+        <!-- 認知度區塊 -->
+        <h2 class="text-lg font-bold text-slate-700 mb-4 border-l-4 border-tech-green pl-2">
+            認知度調查 <span class="text-sm font-normal text-gray-400 ml-2">(Cognition)</span>
+        </h2>
+        <div id="cognition-container" class="space-y-6 mb-8">
+            <!-- JS 生成 -->
+        </div>
+
+        <!-- 滿意度區塊 -->
+        <h2 class="text-lg font-bold text-slate-700 mb-4 border-l-4 border-tech-green pl-2">
+            滿意度調查 <span class="text-sm font-normal text-gray-400 ml-2">(Satisfaction)</span>
+        </h2>
+        <div id="satisfaction-container" class="space-y-6">
+            <!-- JS 生成 -->
+        </div>
+    </section>
+
+    <!-- 4. 簽名 -->
+    <section class="mb-8">
+        <div>
+            <h3 class="text-md font-bold text-slate-700 mb-2 flex items-center">
+                <i class="fa-solid fa-pen-nib mr-2 text-med-blue"></i>病人簽名 (Patient Signature)
+                <span id="sig-error" class="error-msg">請簽名</span>
+            </h3>
+            <div class="relative">
+                <canvas id="signature-pad" width="300" height="150" class="w-full h-40 rounded"></canvas>
+                <button type="button" onclick="clearSignature()" class="absolute top-2 right-2 text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded text-gray-600">
+                    <i class="fa-solid fa-eraser"></i> 清除
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">* 請在框內手寫簽名</p>
+        </div>
+    </section>
+
+    <footer class="mt-12 text-center text-xs text-gray-400 border-t border-gray-200 pt-4">
+        <p>本表單所收集之資料僅供醫療衛教改善使用，將嚴格遵守個人資料保護法規定。</p>
+        <p>© 2025 Outpatient Medication Education System.</p>
+    </footer>
+
+</div>
+
+<!-- 功能按鈕 -->
+<div class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur shadow-lg border-t border-gray-200 p-4 no-print z-50">
+    <div class="max-w-5xl mx-auto flex flex-col md:flex-row justify-center gap-4">
+        
+        <!-- 開啟草稿 (紅色) -->
+        <button type="button" onclick="triggerLoadDraft()" class="flex-1 px-4 py-3 rounded-lg bg-red-500 text-white font-bold hover:bg-red-600 transition shadow flex items-center justify-center">
+            <i class="fa-solid fa-folder-open mr-2"></i> 開啟草稿
+        </button>
+
+        <!-- 暫存草稿 (科技綠) -->
+        <button type="button" onclick="saveDraft()" class="flex-1 px-4 py-3 rounded-lg bg-tech-green text-white font-bold hover:bg-emerald-600 transition shadow flex items-center justify-center">
+            <i class="fa-solid fa-floppy-disk mr-2"></i> 暫存草稿
+        </button>
+
+        <!-- 完成 (醫療藍) -->
+        <button type="button" onclick="submitForm()" class="flex-1 px-4 py-3 rounded-lg bg-med-blue text-white font-bold hover:bg-blue-800 transition shadow-lg flex items-center justify-center">
+            <i class="fa-solid fa-check-circle mr-2"></i> 完成
+        </button>
+
+        <!-- 已移除重置按鈕 -->
+    </div>
+</div>
+
+<!-- Modal -->
+<div id="exportModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 no-print">
+    <div class="bg-white rounded-xl p-8 max-w-sm w-full shadow-2xl text-center">
+        <h3 class="text-xl font-bold text-slate-700 mb-4">表單已完成！</h3>
+        <p class="text-gray-600 mb-6">請選擇您要輸出的檔案格式：</p>
+        
+        <div class="space-y-3">
+            <button onclick="exportPDF()" class="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition flex items-center justify-center">
+                <i class="fa-solid fa-file-pdf mr-2"></i> 下載 PDF
+            </button>
+            <button onclick="exportExcel()" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex items-center justify-center">
+                <i class="fa-solid fa-file-excel mr-2"></i> 下載 Excel
+            </button>
+        </div>
+        
+        <button onclick="closeModal()" class="mt-6 text-sm text-gray-400 hover:text-gray-600 underline">關閉</button>
+    </div>
+</div>
+
+<script>
+    // --- 資料設定 ---
+    const drugList = [
+        "Aspirin (阿斯匹靈) - 抗凝血",
+        "Metformin (美福明) - 降血糖",
+        "Amlodipine (脈優) - 降血壓",
+        "Atorvastatin (立普妥) - 降血脂",
+        "Insulin (胰島素) - 針劑"
+    ];
+
+    const pharmacistList = [
+        "王大明 藥師",
+        "李小慧 藥師",
+        "陳建國 藥師",
+        "林美玲 藥師"
+    ];
+
+    // 定義選項文字
+    const cognitionOptions = ["非常不清楚", "不清楚", "普通", "清楚", "非常清楚"];
+    const satisfactionOptions = ["非常不滿意", "不滿意", "尚可", "滿意", "非常滿意"];
+
+    const surveyQuestions = [
+        {
+            id: "q1",
+            icon: "fa-capsules",
+            text: "我清楚知道這個藥品的「名稱」與「外觀」",
+            type: "cognition"
+        },
+        {
+            id: "q2",
+            icon: "fa-clock",
+            text: "我清楚知道這個藥品的「用法」與「用量」（一天幾次、飯前飯後）",
+            type: "cognition"
+        },
+        {
+            id: "q3",
+            icon: "fa-triangle-exclamation",
+            text: "我了解服用此藥可能發生的「副作用」及處理方式",
+            type: "cognition"
+        },
+        {
+            id: "q4",
+            icon: "fa-box-open",
+            text: "我清楚知道藥品的「保存方式」（室溫、冷藏）",
+            type: "cognition"
+        },
+        {
+            id: "s1",
+            icon: "fa-comments",
+            text: "您對藥師解說內容的清晰度感到滿意",
+            type: "satisfaction"
+        },
+        {
+            id: "s2",
+            icon: "fa-face-smile",
+            text: "您對本次藥物衛教的整體服務態度感到滿意",
+            type: "satisfaction"
+        }
+    ];
+
+    // --- 初始化 ---
+    window.onload = function() {
+        // 1. 藥品選單
+        const drugSelect = document.getElementById('drugSelect');
+        drugList.forEach(drug => {
+            let option = document.createElement('option');
+            option.value = drug;
+            option.text = drug;
+            drugSelect.appendChild(option);
+        });
+
+        // 2. 藥師選單
+        const pharmSelect = document.getElementById('pharmacistSelect');
+        pharmacistList.forEach(p => {
+            let option = document.createElement('option');
+            option.value = p;
+            option.text = p;
+            pharmSelect.appendChild(option);
+        });
+
+        // 3. 生成題目 (分區)
+        const cogContainer = document.getElementById('cognition-container');
+        const satContainer = document.getElementById('satisfaction-container');
+
+        surveyQuestions.forEach((q, index) => {
+            // 決定使用哪組選項文字
+            const optionsText = q.type === 'cognition' ? cognitionOptions : satisfactionOptions;
+            
+            const div = document.createElement('div');
+            div.className = "p-4 border-b border-gray-100 form-group hover:bg-blue-50/30 transition rounded";
+            div.id = `group-${q.id}`;
+            
+            // 生成 5 個選項
+            const optionsHtml = optionsText.map((text, i) => {
+                const val = i + 1; // 1-5
+                return `
+                <label class="radio-group inline-flex items-center cursor-pointer mr-4 mb-2">
+                    <input type="radio" name="${q.id}" value="${val}" data-text="${text}">
+                    <span class="radio-custom"></span>
+                    <span class="option-label text-sm">${text}</span>
+                </label>
+                `;
+            }).join('');
+
+            div.innerHTML = `
+                <div class="flex items-start mb-3">
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full bg-med-blue text-white flex items-center justify-center mt-1">
+                        <i class="fa-solid ${q.icon} text-sm"></i>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <p class="font-medium text-slate-700">${q.text}</p>
+                        <span class="error-msg">請完成此評分</span>
+                    </div>
+                </div>
+                <div class="ml-11 flex flex-wrap gap-2">
+                    ${optionsHtml}
+                </div>
+            `;
+            
+            if (q.type === 'cognition') {
+                cogContainer.appendChild(div);
+            } else {
+                satContainer.appendChild(div);
+            }
+        });
+
+        document.getElementById('surveyDate').valueAsDate = new Date();
+        initCanvas();
+    };
+
+    // --- Canvas ---
+    let canvas, ctx, isDrawing = false;
+    function initCanvas() {
+        canvas = document.getElementById('signature-pad');
+        ctx = canvas.getContext('2d');
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousedown", { clientX: touch.clientX, clientY: touch.clientY });
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousemove", { clientX: touch.clientX, clientY: touch.clientY });
+            canvas.dispatchEvent(mouseEvent);
+        }, { passive: false });
+
+        canvas.addEventListener('touchend', () => {
+            const mouseEvent = new MouseEvent("mouseup", {});
+            canvas.dispatchEvent(mouseEvent);
+        });
+    }
+
+    function getMousePos(canvas, evt) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+            x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+            y: (evt.clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+    function startDrawing(e) { isDrawing = true; draw(e); }
+    function draw(e) {
+        if (!isDrawing) return;
+        const pos = getMousePos(canvas, e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(pos.x, pos.y);
+    }
+    function stopDrawing() { isDrawing = false; ctx.beginPath(); }
+    function clearSignature() { ctx.clearRect(0, 0, canvas.width, canvas.height); }
+    function isCanvasBlank(canvas) {
+        const blank = document.createElement('canvas');
+        blank.width = canvas.width;
+        blank.height = canvas.height;
+        return canvas.toDataURL() === blank.toDataURL();
+    }
+
+    // --- 邏輯 ---
+    function clearErrors() {
+        document.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
+        document.querySelectorAll('.error-msg').forEach(el => {
+            if(el.id !== 'sig-error') el.style.display = 'none';
+        });
+        document.getElementById('sig-error').style.display = 'none';
+    }
+
+    function validateField(id, isRadio = false) {
+        let el = document.getElementById(id);
+        if(!el && !isRadio) return false;
+        let isValid = false;
+        if (isRadio) {
+            const radios = document.getElementsByName(id);
+            for(let r of radios) if(r.checked) isValid = true;
+            if(!isValid) document.getElementById(`group-${id}`).classList.add('has-error');
+        } else {
+            if (!el.value.trim()) {
+                let parent = el.closest('.form-group');
+                if(parent) parent.classList.add('has-error');
+            } else {
+                isValid = true;
+            }
+        }
+        return isValid;
+    }
+
+    // --- 草稿相關功能 ---
+
+    function triggerLoadDraft() {
+        document.getElementById('draftInput').click();
+    }
+
+    function loadDraftFile(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+                
+                document.getElementById('patientName').value = data.basic.name || "";
+                document.getElementById('patientId').value = data.basic.id || "";
+                document.getElementById('surveyDate').value = data.basic.date || "";
+                document.getElementById('patientAge').value = data.basic.age || "";
+                
+                document.getElementById('pharmacistSelect').value = data.pharmacist || "";
+                document.getElementById('drugSelect').value = data.drug || "";
+
+                if (data.survey) {
+                    surveyQuestions.forEach(q => {
+                        const savedText = data.survey[q.text];
+                        if (savedText) {
+                            const radios = document.getElementsByName(q.id);
+                            for (let r of radios) {
+                                if (r.getAttribute('data-text') === savedText) {
+                                    r.checked = true;
+                                    break;
+                                }
+                            }
+                        }
+                    });
+                }
+
+                if (data.signature) {
+                    const img = new Image();
+                    img.onload = function() {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0);
+                    };
+                    img.src = data.signature;
+                }
+
+                clearErrors();
+                alert("草稿載入成功！");
+                input.value = ''; 
+
+            } catch (err) {
+                console.error(err);
+                alert("草稿讀取失敗：檔案格式錯誤");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // 修正後的 saveDraft：包含驗證邏輯
+    function saveDraft() {
+        clearErrors();
+        let firstError = null;
+
+        // 1. 檢查基本資料
+        ['patientName', 'patientId', 'surveyDate'].forEach(id => {
+            if(!validateField(id)) {
+                if(!firstError) firstError = document.getElementById(id);
+            }
+        });
+
+        // 2. 檢查簽名
+        if(isCanvasBlank(canvas)) {
+            document.getElementById('sig-error').parentElement.parentElement.classList.add('has-error');
+            document.getElementById('sig-error').style.display = 'inline-block';
+            if(!firstError) firstError = document.getElementById('signature-pad');
+        } else {
+            document.getElementById('sig-error').style.display = 'none';
+        }
+
+        if (firstError) {
+            alert("暫存失敗：請至少填寫基本資料與簽名");
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        // 驗證通過，執行存檔
+        const data = collectFormData();
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `草稿_${data.basic.name || '未命名'}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+        alert("草稿已下載至您的電腦");
+    }
+
+    function submitForm() {
+        clearErrors();
+        let firstError = null;
+        ['patientName', 'patientId', 'surveyDate', 'patientAge'].forEach(id => {
+            if(!validateField(id)) if(!firstError) firstError = document.getElementById(id);
+        });
+        if(!validateField('drugSelect')) if(!firstError) firstError = document.getElementById('drugSelect');
+        surveyQuestions.forEach(q => {
+            if(!validateField(q.id, true)) if(!firstError) firstError = document.getElementById(`group-${q.id}`);
+        });
+        if(isCanvasBlank(canvas)) {
+            document.getElementById('sig-error').parentElement.parentElement.classList.add('has-error');
+            document.getElementById('sig-error').style.display = 'inline-block';
+            if(!firstError) firstError = document.getElementById('signature-pad');
+        } else {
+             document.getElementById('sig-error').style.display = 'none';
+        }
+        if(!validateField('pharmacistSelect')) if(!firstError) firstError = document.getElementById('pharmacistSelect');
+
+        if (firstError) {
+            alert("提交失敗：尚有未完成項目");
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        document.getElementById('exportModal').classList.remove('hidden');
+        document.getElementById('exportModal').classList.add('flex');
+    }
+
+    // 重置功能已移除
+
+    function collectFormData() {
+        let surveyResults = {};
+        surveyQuestions.forEach(q => {
+            const checked = document.querySelector(`input[name="${q.id}"]:checked`);
+            if (checked) {
+                surveyResults[q.text] = checked.getAttribute('data-text'); 
+            } else {
+                surveyResults[q.text] = "";
+            }
+        });
+
+        return {
+            basic: {
+                name: document.getElementById('patientName').value,
+                id: document.getElementById('patientId').value,
+                date: document.getElementById('surveyDate').value,
+                age: document.getElementById('patientAge').value
+            },
+            drug: document.getElementById('drugSelect').value,
+            survey: surveyResults,
+            pharmacist: document.getElementById('pharmacistSelect').value,
+            signature: canvas.toDataURL()
+        };
+    }
+
+    // --- 匯出功能 ---
+    function closeModal() {
+        document.getElementById('exportModal').classList.add('hidden');
+        document.getElementById('exportModal').classList.remove('flex');
+    }
+
+    function exportPDF() {
+        // 強制捲動到頂部，確保截圖座標正確
+        window.scrollTo(0, 0);
+
+        const element = document.getElementById('form-container');
+        element.classList.remove('shadow-2xl');
+        
+        html2canvas(element, { 
+            scale: 2,
+            useCORS: true,
+            height: element.scrollHeight,
+            windowHeight: element.scrollHeight
+        }).then(canvas => {
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const imgWidth = pageWidth;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            
+            let heightLeft = imgHeight;
+            let position = 0;
+
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
+            
+            pdf.save(`衛教單_${document.getElementById('patientName').value || 'New'}.pdf`);
+            closeModal();
+            element.classList.add('shadow-2xl');
+        });
+    }
+
+    function exportExcel() {
+        const data = collectFormData();
+        
+        let flatData = {
+            "姓名": data.basic.name,
+            "病歷號": data.basic.id,
+            "日期": data.basic.date,
+            "年齡": data.basic.age,
+            "衛教藥品": data.drug,
+            "衛教藥師": data.pharmacist,
+            ...data.survey
+        };
+
+        const ws = XLSX.utils.json_to_sheet([flatData]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "衛教調查表");
+        XLSX.writeFile(wb, `衛教單_${data.basic.name}.xlsx`);
+        closeModal();
+    }
+</script>
+</body>
+</html>
